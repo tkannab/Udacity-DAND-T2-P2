@@ -1,0 +1,1621 @@
+Loan Data from Prosper (Data Exploratory Analysis) by Toufik Kannab
+========================================================
+
+***
+###Introduction:
+
+Prosper is a peer-to-peer lending platform, with over \$10 billion in funded loans, where individuals can either invest in personal loans or request to borrow money. On Prosper, borrowers list loan requests between \$2,000 and \$35,000 and individual investors invest as little as \$25 in each loan listing they select. Prosper handles the servicing of the loan on behalf of the matched borrowers and investors. Prosper Marketplace is backed by leading investors including Sequoia Capital, Francisco Partners, Institutional Venture Partners, and Credit Suisse NEXT Fund.
+
+This report will explore a loan dataset containing 113,937 loans with 81 variables on each loan, including loan amount, borrower rate (or interest rate), current loan status, borrower income, borrower employment status, borrower credit history, the latest payment information and many others. Click [here](https://docs.google.com/spreadsheets/d/1gDyi_L4UvIrLTEC6Wri5nbaMmkGmLQBk-Yx3z0XDEtI/edit#gid=0) to download the excel spreadsheet which includes a datailed description of each variable in the dataset.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# Load all of the packages that you end up using in your analysis in this code
+# chunk.
+
+# Notice that the parameter "echo" was set to FALSE for this code chunk. This
+# prevents the code from displaying in the knitted HTML output. You should set
+# echo=FALSE for all code chunks in your file, unless it makes sense for your
+# report to show the code that generated a particular plot.
+
+# The other parameters for "message" and "warning" should also be set to FALSE
+# for other code chunks once you have verified that each plot comes out as you
+# want it to. This will clean up the flow of your report.
+
+library(tidyverse)
+library(gridExtra)
+library(cowplot)
+library(forcats)
+library(GGally)
+library(scales)
+theme_set(theme_grey())
+options(scipen = 999) # disable scientific notation
+
+```
+
+```{r echo=FALSE, Load_the_Data}
+
+# Load the Data
+
+loan = read.csv('prosperLoanData.csv')
+
+```
+
+
+# Univariate Plots Section
+
+
+For the purpose of this project and after reviewing the 81 variables, the analysis will be limited to the following variables:
+
+```{r echo=FALSE, Customize_the_Dataset}
+
+# Limit the dataset to the variables below
+
+loan_updated = loan[,c("ListingKey", "ListingCreationDate", "Term", "LoanStatus", "BorrowerRate", "ProsperRating..numeric.", "ProsperRating..Alpha.", "ProsperScore","ListingCategory..numeric.","BorrowerState", "Occupation", "EmploymentStatus", "IsBorrowerHomeowner", "CreditScoreRangeLower", "CreditScoreRangeUpper", "IncomeVerifiable","AvailableBankcardCredit", "DebtToIncomeRatio", "LoanKey", "MemberKey","IncomeRange", "LoanOriginalAmount","Investors")]
+
+names(loan_updated)
+
+```
+
+
+#### Preliminary Exploration:
+
+
+As we start our exploration, we will check for missing and duplicated data as applicable.
+
+```{r include=FALSE}
+
+# Custom function: add Standard Deviation to the summary function:
+
+mySummary <- function(vector, na.rm = FALSE, round = 2){
+  result <- c(summary(vector), 
+               'Std. Dev' = round(sd(vector, na.rm), 2))
+  return(result)
+}
+
+```
+
+
+#### 1. Dataset Keys
+
+
+I reviewed the dataset structure and the variable definitions and found 4 key-related variables: `ListingKey`, `GroupKey`, `LoanKey`, and `MemberKey`; while `GroupKey` and `MemberKey` seem to have a distinct purpose and definition, `ListingKey` and `LoanKey` have a similar definition, so let's check if there are any listings where `ListingKey` and `LoanKey` match:
+
+```{r echo=FALSE}
+
+# Convert the listingkey and loankey to character format
+
+loan_updated$ListingKey <- as.character(loan_updated$ListingKey)
+loan_updated$LoanKey <- as.character(loan_updated$LoanKey)
+
+# return the rows where listingkey and loankey match.
+
+loan_updated %>% 
+  filter(ListingKey == LoanKey)
+
+```
+
+Based on the output above, `ListingKey` and `LoanKey` have different values, but before determining which one to use, let's check for *NA* empty values and duplication.
+
+```{r echo=FALSE}
+
+# Check for NA/empty values
+
+cat("No. of NA or empty values found in the variable (ListingKey):",sum(is.na(loan_updated$ListingKey) | loan_updated$ListingKey ==""),'\n')
+cat("No. of NA or empty values found in the variable (LoanKey):",sum(is.na(loan_updated$LoanKey) | loan_updated$LoanKey ==""),'\n')
+
+```
+
+```{r echo=FALSE}
+
+# check for duplicates in `ListingKey`
+
+loan_updated$ListingKey <- as.character(loan_updated$ListingKey)
+dup_List_keys <- loan_updated %>% 
+  count(ListingKey) %>% 
+  filter(n > 1)
+
+loan_updated$LoanKey <- as.character(loan_updated$LoanKey)
+dup_Loan_keys <- loan_updated %>% 
+  count(LoanKey) %>% 
+  filter(n > 1)
+
+cat("No. of duplicate values found in the variable (ListingKey):",nrow(dup_List_keys),'\n')
+cat("No. of duplicate values found in the variable (LoanKey):",nrow(dup_Loan_keys))
+
+```
+
+According to the definitions provided with the dataset, both `ListingKey` and `LoanKey` should be unique, however, as per the output above, I found a total of 827 duplicates; after isolating and reviewing duplicated rows, I found that for each duplicated key, all the other variables have duplicated values (including `LoanKey`) except for `ProsperScore`. For the purpose of this project, I will exclude them from the dataset. 
+```{r, include=FALSE}
+
+# remove loans with duplicated listingkeys
+
+loan_updated <- loan_updated %>% 
+  filter(!(ListingKey %in% dup_List_keys$ListingKey))
+
+# delete the temporary variables dup_List_keys and dup_Loan_keys as I won't need them anymore
+
+rm(dup_List_keys)
+rm(dup_Loan_keys)
+
+```
+
+
+####2. Member Keys
+
+
+Looking at the variable definition, Member keys are not necessarily unique, but let's check if there are any duplicate borrowers (borrowers who have more than one loan in the database):
+
+```{r echo=FALSE}
+
+# Check for duplicate member keys
+
+loan_updated$MemberKey <- as.character(loan_updated$MemberKey)
+dup_Member_keys <- loan_updated %>% 
+  count(LoanKey) %>% 
+  filter(n > 1)
+
+cat("No. of duplicate values found in the variable (MemberKey):",nrow(dup_Member_keys))
+
+```
+
+As per the output above, it looks like `MemberKey` doesn't have duplicate values.
+
+```{r echo=FALSE}
+
+# delete dup_Member_keys
+
+rm(dup_Member_keys)
+
+```
+
+
+#### 3. Loans Creation Date
+
+
+For the purpose of this project, I will create a new variable called `LoanCreationYear` based on `ListingCreationDate`. Let's plot the listings per the new variable to see the listings distribution by year.
+
+```{r, echo=FALSE}
+
+# Convert `ListingCreationDate` to DateTime
+
+loan_updated$ListingCreationDate <- as.POSIXct(loan_updated$ListingCreationDate,tz = "UTC",format="%Y-%m-%d %H:%M:%S")
+
+# Create a new variable: LoanCreationYear based on the variable ListingCreationDate
+
+loan_updated$LoanCreationYear <- format(as.Date(loan_updated$ListingCreationDate), "%Y")
+
+# Plot the distribution of the variable CreationYear
+
+ggplot(data = loan_updated, aes(LoanCreationYear)) + 
+	geom_bar()
+
+```
+
+Looking at the plot above, we notice that the loan dataset spans between 2005 and 2014. Moreover, we also notice that the number of loans prior to 2010 is significantly less than 2010 - 2014. Also, from the dataset documentation, we notice there are a number of variabes **ONLY** applicable to loans created after **July 13, 2009**, including: `ProsperRating (numeric)`, `ProsperRating (Alpha)`, `ProsperScore`, and since I'm planning to use these variables later in my analysis, I will exclude the loans created prior to *July 13, 2009* to avoid *NA* or missing values. Let's re-plot the chart above after excluding the listings (loans) created prior to **July 13, 2009**:
+
+```{r, echo=FALSE}
+
+# Remove the loans prior to July 13, 2019:
+
+loan_updated <- loan_updated %>% 
+  filter(ListingCreationDate > as.Date("2009-07-13"))
+
+# Plot the distribution of the variable CreationYear after removing the loans in the step above:
+
+ggplot(data = loan_updated, aes(LoanCreationYear)) + 
+	geom_bar()
+
+```
+
+```{r echo=FALSE}
+
+# print the no. of loans after excluding the loans created prior to July 13, 2009
+
+nrow(loan_updated)
+
+```
+
+After excluding the loans, we are left with **83,155** loans which is a reasonable number to perform the analysis.
+
+
+####4. Loan Term:
+
+
+```{r, echo=FALSE}
+
+# Plot the distribution of the variable Term
+
+ggplot(data = loan_updated, aes(Term)) + 
+  scale_x_continuous(breaks= c(12,36,60)) +
+	geom_bar()
+
+```
+
+```{r echo=FALSE}
+
+# Create a frequency table
+
+loan_updated %>%
+  count(Term) %>%
+  mutate(freq = n / sum(n)) %>%
+  arrange(desc(n))
+
+```
+
+Looking at the output abvove, we notice the majority of the loans (69.3%) have a 36-month term duration, where (29%) have a 60-month duration, and only about (2%) have a 12-month duration.
+
+
+####5. LoanStatus:
+
+
+```{r echo=FALSE}
+
+# Plot the distribution of the variable loan status; sort the output by frequency.
+
+ggplot(data = loan_updated, 
+       aes(LoanStatus %>% fct_infreq() %>% fct_rev())) + 
+	geom_bar() + coord_flip() +
+  scale_x_discrete("Loan Status")
+
+```
+
+```{r echo=FALSE}
+
+# Create a frequency table
+
+loan_updated %>%
+  count(LoanStatus) %>%
+  mutate(freq = n / sum(n)) %>%
+  arrange(desc(n))
+
+```
+
+Looking at the output above, we notice around (66%) of the loans have an active status or *Current*, (23.6%) are *Completed*, (6.4%) are *Chargedoff* and only (1.2%) are *Defaulted*. Since **Loan Delinquency** (`LoanStatus`) will play a major role in this analysis, I thought it might be useful to spend some time understanding the different categories within this variable, more specifically: Defaulted, ChargedOff and PastDue; below is a summary of the information I've gathered:
+
+- **Loan Delinquency**: it is a situation in which a borrower misses its due date for a single scheduled payment for a form of financing, like student loans, mortgages, credit card balances or automobile loans. Delinquency occurs *as soon as* a borrower misses a payment. [Investopedia](https://www.investopedia.com/terms/d/delinquent.asp)
+
+- **Default Loan**: the failure to pay interest or principal on a loan or security when due. Default occurs when a debtor is unable to meet the legal obligation of debt repayment, and it also refers to cases in which one party fails to perform on a futures contract as required by an exchange. [Investopedia](https://www.investopedia.com/terms/d/default2.asp)
+
+- **Charge-off**: A charge-off is a debt, (e.g. a credit card), that is deemed unlikely to be collected by the creditor because the borrower has become substantially delinquent after a period of time. However, a charge-off does not mean a write-off of the debt entirely. A charge-off usually occurs when the creditor has deemed an outstanding debt is *uncollectible*; this typically follows **180 days** or six months of non-payment. In addition, debt payments that fall below the required minimum payment for the period will also be charged off if the debtor does not make up for the shortfall. The creditor crosses off the consumer’s debt as uncollectible and marks it on the consumer’s credit report as a charge-off. [Investopedia](https://www.investopedia.com/terms/c/chargeoff.asp#ixzz5AP5geIRh). 
+
+According to federal regulations, installment loans (like student loans) must be charged-off after being delinquent for 120, while revolving credit accounts (i.e, credit cards) must be charged-off after they’ve been delinquent for 180 days. [BadCredit.org](http://www.badcredit.org/delinquencies-defaults-charge-offs-whats-difference/)
+
+**Delinquency vs. Default**: Delinquency and default are both loan terms representing different degrees of the same problem: missing payments. A loan becomes delinquent when you make payments late **(even by one day)** or miss a regular installment payment or payments. On the other hand, Loan default is much more serious, changing the nature of your borrowing relationship with the lender, and with other potential lenders as well. [Investopedia](https://www.investopedia.com/ask/answers/062315/what-are-differences-between-delinquency-and-default.asp)
+
+Looking at the variable `LoanStatus`, although there is no category called *Delinquent*, we can identify which loands are delinquent based on the assumption that **ANY** delay will be considered a **Delinquency**, by definition. To achieve that, I created a new variable called `DelinquentList` which takes one of the following values:
+
+- **Delinquent**: when a listing (loan) status is one of the following: Chargedoff, Defaulted, Past Due (1-15 days), Past Due (31-60 days), Past Due (61-90 days), Past Due (91-120 days), or Past Due (16-30 days).
+- **Good Standing**: when a listing status is one of the following: Completed, Current, FinalPaymentInProgress, and Canceled (after excluding the loans created prior to July 13, 2009, I didn't find any loans that have the status Canceled).
+
+```{r echo=FALSE}
+
+# Create a new variable `DeliquentList` as per the analysis above:
+
+loan_updated$DelinquentList <-  ifelse( loan_updated$LoanStatus == "Chargedoff" | 
+                                        loan_updated$LoanStatus == "Defaulted" |
+                                        loan_updated$LoanStatus == "Past Due (1-15 days)" | 
+                                        loan_updated$LoanStatus == "Past Due (31-60 days)" |
+                                        loan_updated$LoanStatus == "Past Due (61-90 days)" | 
+                                        loan_updated$LoanStatus == "Past Due (91-120 days)" |
+                                        loan_updated$LoanStatus == "Past Due (>120 days)", 
+                                        "Delinquent", "Good Standing")
+
+```
+
+```{r, echo=FALSE}
+
+# Plot the distribution of the variable DelinquentList
+
+ggplot(data = loan_updated, 
+       aes(DelinquentList)) + 
+  geom_bar()
+
+```
+
+```{r echo=FALSE}
+
+# Value count and frequency: variable DelinquentList
+
+loan_updated %>%
+  count(DelinquentList) %>%
+  mutate(freq = n / sum(n)) %>%
+  arrange(desc(n))
+
+```
+
+Looking at the output above, we notice the greatest majority of loans (90.23%) are in *Good Standing* status where (9.77%) are *Delinquent*. Later on, we will use the new variable `DelinquentList` to break down other variables and identify any possible correlations between those variables and loan delinquency. 
+
+
+####6. Borrower Rate
+
+
+```{r echo=FALSE}
+
+# View histogram zoom in
+
+ggplot(data = loan_updated, 
+       aes(x = BorrowerRate)) + 
+  geom_histogram(binwidth = 0.005) + 
+  scale_x_continuous(breaks = seq(0.05,0.36, 0.05)) +
+  coord_cartesian(xlim = c(0.05,0.36))
+
+```
+
+```{r echo=FALSE}
+# use mySummary to show BorrowerRate summary data:
+
+mySummary(loan_updated$BorrowerRate)
+
+```
+
+```{r, echo=FALSE}
+
+# Show the count and proportion of the top 10 values of BorrowerRate:
+
+loan_updated %>%
+  count(BorrowerRate) %>%
+  mutate(freq = n / sum(n)) %>%
+  arrange(desc(n)) %>%
+  head(n = 10)
+
+```
+
+Looking on the output above, we notice that the median and mean are close (18.97% to 19.66%); also, there are 3,672 borrowers (or 3.2 %) that have received an interest rate of (31.77 %) which is way far from the mean and median, this peak looks interesting and may deserve a deeper investigation.
+
+
+####7. Prosper Rating
+
+
+```{r, echo=FALSE}
+
+# Plot the distribution of the variable DelinquentList
+
+ggplot(data = loan_updated, 
+       aes(ProsperRating..numeric.)) + 
+  geom_bar() +
+  scale_x_discrete(limits = 1:7)
+
+```
+
+```{r echo=FALSE}
+
+# Show the count and proportion of the variable ProsperRating..Alpha.:
+
+loan_updated %>%
+  count(ProsperRating..numeric.) %>%
+  mutate(freq = n / sum(n))
+
+```
+
+
+According to the definition, `ProsperRating (numeric)` is a rating assigned at the time the listing was created: 0 - N/A, 1 - HR, 2 - E, 3 - D, 4 - C, 5 - B, 6 - A, 7 - AA. However, the definition doesn't provide sufficient information as to what this rating actually represents or how it is calcuated/determined. As we progress, we will try to identify any possible correlations between this rating and the other variables.
+
+
+####8. Prosper Score
+
+
+```{r, echo=FALSE}
+
+# Plot the distribution of variable ProsperScore:
+
+ggplot(data = loan_updated, 
+       aes(ProsperScore)) + 
+  geom_bar() +
+  scale_x_discrete(limits = 1:11)
+
+```
+
+```{r echo=FALSE}
+
+# Show the count and proportion of the variable ProsperScore:
+
+loan_updated %>%
+  count(ProsperScore) %>%
+  mutate(freq = n / sum(n))
+
+```
+
+Looking at the output above, the distribution looks relatively normal; the top 3 proportions of loans have received a score of 4, 6 and 8 respectively.
+
+According to the definition, `ProsperScore` is a custom risk score built using historical Prosper data. The score ranges from 1-10, with 10 being the best, or lowest risk score. However, the output above shows (1,408) loans with a score of 11. For the purpose of this project and after reviewing the documentation, I will replace the 11's with the mean value of `ProsperScore` which is 6 (the mean is 5.9, I will round it up to 6). After replacing the errored values, let's check the values again:
+
+```{r include=FALSE}
+
+# replace 11 with 6 in variable ProsperScore:
+
+loan_updated$ProsperScore[loan_updated$ProsperScore == 11] <- 6
+
+```
+
+```{r echo=FALSE}
+
+# Show the count and proportion of the variable ProsperScore:
+
+loan_updated %>%
+  count(ProsperScore) %>%
+  mutate(freq = n / sum(n))
+
+```
+
+
+####8. Listing Category:
+
+
+Per review of the definition and the values asssigned to variable `ListingCategory..numeric.`, I will create a new variable called `NewListingCategory` to include the actual categories.
+
+```{r, echo=FALSE}
+
+# Create a temporary list to include the actual listing categories as per the definition:
+
+tmp_list_cat <- c("Not Available", "Debt Consolidation", "Home Improvement", "Business", "Personal Loan", "Student Use", "Auto", "Other", "Baby&Adoption", "Boat", "Cosmetic Procedure", "Engagement Ring", "Green Loans","Household Expenses", "Large Purchases", "Medical/Dental", "Motorcycle", "RV", "Taxes", "Vacation", "Wedding Loans")
+
+# Create new variable (NewListingCategory) based on the list above:
+
+loan_updated$NewListingCategory <- tmp_list_cat[(loan_updated$ListingCategory..numeric.)+1]
+
+# Delete the temp list
+
+rm(tmp_list_cat)
+
+```
+
+```{r echo=FALSE}
+
+# bar plot for the new variable: NewListingCategory
+
+ggplot(data = loan_updated,
+       aes(x = NewListingCategory %>% fct_infreq() %>% fct_rev())) + 
+  geom_bar() + 
+  coord_flip() +
+  scale_x_discrete("Listing Category")
+  
+```
+
+```{r echo=FALSE}
+
+# Show the count and proportion of the variable NewListingCategory
+
+loan_updated %>%
+  count(NewListingCategory) %>%
+  mutate(freq = n / sum(n)) %>%
+  arrange(desc(n))
+
+```
+
+Looking at the output above, we notice the largest category (62.24%) is *Debit Consolidation*, where the smallest category is *Not Available* with only 20 loans.
+
+
+####9. BorrowerState:
+
+
+```{r echo=FALSE, fig.height = 10}
+
+# plot the distribution of variable BorrowerState,
+
+ggplot(data = loan_updated,
+       aes(x = BorrowerState %>% fct_infreq() %>% fct_rev())) + 
+  geom_bar() +
+  coord_flip() +
+  scale_x_discrete("Borrower State")
+  
+```
+
+```{r echo=FALSE}
+
+# Count and proportion of the variable BorrowerState:
+
+loan_updated %>%
+  count(BorrowerState) %>%
+  mutate(freq = n / sum(n)) %>%
+  arrange(desc(n)) %>% 
+  head(10)
+
+```
+
+Looking at the output above, we notice there are loans from the 48 states, as expected, the state with the largest proportion (12.66%) is *California*, where the state with the smallest proportion is *Wyoming* with 123 loans.
+
+
+####10. Occupation:
+
+
+```{r fig1, echo=FALSE, fig.height=10}
+
+# plot the distribution of variable Occupation,
+
+ggplot(data = subset(loan_updated, Occupation != ""),
+       aes(x = Occupation %>% fct_infreq() %>% fct_rev())) + 
+  geom_bar() +
+  coord_flip() +
+  scale_x_discrete("Occupation")
+
+```
+
+```{r, echo=FALSE}
+
+# Show the count and proportion of the top 10 Occupations:
+
+loan_updated %>%
+  count(Occupation) %>%
+  mutate(freq = n / sum(n)) %>%
+  arrange(desc(n)) %>%
+  head(n = 10)
+
+```
+
+```{r echo=FALSE}
+
+# Check for NA/empty values
+
+cat("No. of NA or empty values in the variable (Occupation):",sum(is.na(loan_updated$Occupation) | loan_updated$Occupation ==""))
+
+```
+
+Looking at the results above, the largest proportion of borrowers (25.11%) reported *Other* as occupation, next comes *Professional* with (11.96%). These results lead us to think of a number of scenarios, one scenario is that the majority of borrowers don't probably have one specific job or role; or they are not willing to report their actual job, or perhaps they have an occupation not on list, which is kind of unlikely to be the case as the list quite comprehensive. Also, I also found 1,218 loans that don't have the borrower's occupation included.
+
+
+####11. Employement Status:
+
+
+```{r echo=FALSE}
+
+# plot the distribution of variable EmploymentStatus:
+
+ggplot(data = loan_updated,
+       aes(x = EmploymentStatus %>% fct_infreq() %>% fct_rev())) + 
+  geom_bar() +
+  coord_flip() +
+  scale_x_discrete("Employment Status")
+
+```
+
+```{r, echo=FALSE}
+
+# Show the count and proportion of each Employment Status:
+
+loan_updated %>%
+  count(EmploymentStatus) %>%
+  mutate(freq = n / sum(n)) %>%
+  arrange(desc(n))
+
+```
+
+Looking at the output above, the largest proportion of borrowers (79.25%) are *Employed* where only (0.3%) have a *Part-time* job.
+
+
+####12. Home Owners:
+
+
+```{r echo=FALSE}
+
+# Plot the count of the variable: IsBorrowerHomeowner
+
+ggplot(data = loan_updated, 
+       aes(x = IsBorrowerHomeowner)) + 
+  geom_bar()
+
+```
+
+```{r echo=FALSE}
+
+# Show the count and proportion of the lowest IsBorrowerHomeowner :
+
+loan_updated %>%
+  count(IsBorrowerHomeowner) %>%
+  mutate(freq = n / sum(n)) %>%
+  arrange(desc(n))
+
+```
+
+Looking at the output above, we notice that about 53% of the borrowers are home owners.
+
+
+####13. Average Credit Score:
+
+
+To analyze the credit score, I will create a new variable called `AvgCreditScore` which is the average value of two variables: `CreditScoreRangeUpper` and `CreditScoreRangeLower`.
+
+```{r, echo=FALSE}
+
+# Create a new variable to show the average credit score based on the upper and lower limits provided:
+
+loan_updated$AvgCreditScore = (loan_updated$CreditScoreRangeUpper + loan_updated$CreditScoreRangeLower)/2
+
+```
+
+```{r echo=FALSE}
+
+# Plot the histogram of the new variable AvgCreditScore
+
+ggplot(data = subset(loan_updated,!is.na(AvgCreditScore)), 
+       aes(x = AvgCreditScore)) + 
+  geom_histogram(binwidth = 10) + 
+  scale_x_continuous(breaks = seq(600,900,25)) +
+  coord_cartesian(xlim = c(600,900))
+
+```
+
+```{r echo=FALSE}
+
+#show summary of the new variable AvgCreditScore
+
+mySummary(loan_updated$AvgCreditScore)
+
+```
+
+```{r, echo=FALSE}
+
+# Count and proportions of AvgCreditScore :
+
+loan_updated %>%
+  count(AvgCreditScore) %>%
+  mutate(freq = n / sum(n)) %>%
+  arrange(AvgCreditScore) %>%
+  head(n = 10)
+
+```
+
+Looking at the restuls above, The average value of the `AvgCreditScore` is (709.1) with a minimum of (609.5) and a maximum of (889.5). According to a blog post on (www.fico.com), (click [here](http://www.fico.com/en/blogs/risk-compliance/us-average-fico-score-hits-700-a-milestone-for-consumers/) to see the post), the percentage of consumers scoring in the range (800 and up) has steadily increased since 2010 after the bottoming out of the economy between 2009 - 2010; the data presented in the post was based on a snapshot of millions of US consumers’ credit data that ranges between 2005 - 2017, the post shows how the average credit score has increased from (686) in October 2009 to (696) in October 2015, and later hit the (700) threshold by April 2017. By comparing the figures included in this post with our dataset, I can reasonably assume that our dataset is consistent with what was found in the post; I've also noticed, based on the histogram above, that the distribution of the average credit score is relatively normal, which is expected, with a longer right tail. Another interesting observation I've noticed is that there are spaces of the same size (20 points) between the bins, I'm not quite sure why this is the case, it could be related to the way credit scores are fed to the loan system, but this is something to be considered when conducting a more in-depth analysis of the credit score variables.
+
+
+####14. Available Bank card Credit
+
+
+```{r echo=FALSE}
+
+# Plot the distribution of the variable AvailableBankcardCredit:
+
+ggplot(data = loan_updated,
+       aes(x = AvailableBankcardCredit)) + 
+  geom_histogram(binwidth = 100) + 
+  scale_x_continuous(breaks = seq(0,75000, 7500)) +
+  coord_cartesian(xlim = c(0,75000))
+
+```
+
+```{r echo=FALSE}
+# show summary of variable AvailableBankcardCredit
+
+mySummary(loan_updated$AvailableBankcardCredit)
+
+```
+
+```{r, echo=FALSE}
+
+# count and proportions of the top 10 values of AvailableBankcardCredit:
+
+loan_updated %>%
+  count(AvailableBankcardCredit) %>%
+  mutate(freq = n / sum(n)) %>%
+  arrange(desc(n)) %>%
+  head(n = 10)
+  
+```
+
+Looking at the ouput above, we notice the distribution of the variable `AvailableBankcardCredit` is significantly right-skewed; 
+
+
+####15. DebtToIncomeRatio:
+
+
+```{r echo=FALSE}
+
+# Plot the distribution of the variable DebtToIncomeRatio:
+
+ggplot(data = subset(loan_updated, !is.na(DebtToIncomeRatio)), aes(x = DebtToIncomeRatio)) + 
+  geom_histogram(binwidth = 0.03) + 
+  scale_x_continuous(breaks = seq(0,1.3, 0.1)) +
+  coord_cartesian(xlim = c(0,1.3))
+
+```
+
+```{r echo=FALSE}
+
+# summary of variable DebtToIncomeRatio
+
+mySummary(loan_updated$DebtToIncomeRatio)
+
+```
+
+```{r, echo=FALSE}
+
+# Count and proportions of the top 10 values of DebtToIncomeRatio:
+
+loan_updated %>%
+  count(DebtToIncomeRatio) %>%
+  mutate(freq = n / sum(n)) %>%
+  arrange(desc(n)) %>%
+  head(n = 10)
+
+```
+
+```{r echo=FALSE}
+
+# Check for NA Values
+
+cat("No. of NA or empty values in the variable (DebtToIncomeRatio):",sum(is.na(loan_updated$DebtToIncomeRatio) | loan_updated$DebtToIncomeRatio ==""))
+
+```
+
+Looking at the output above, the distribution of the variable `DebtToIncomeRatio` is right skewed with a mean of (25.9%). We also notice that the largest proportions (8.5%) or (7,135) loans don't have a value for `DebtToIncomeRatio`, where (3.8%) of the loans have a `DebtToIncomeRatio` of (18%).
+
+
+####16. Income Range:
+
+
+```{r echo=FALSE}
+
+# Plot the variable IncomeRanges
+
+ggplot(data = loan_updated,
+       aes(x = IncomeRange)) + 
+  geom_bar() +
+  coord_flip() +
+  scale_x_discrete("Income Range")
+
+```
+
+```{r, echo=FALSE}
+
+# Show the count and proportion of the variable IncomeRange:
+
+loan_updated %>%
+  count(IncomeRange) %>%
+  mutate(freq = n / sum(n)) %>%
+  arrange(desc(n))
+
+```
+
+Looking at the output above, we notice that the largest propotion of borrowers (30%) have an income range of (50K-75K), where the smallest group (0.5%) have reported zero dollar income.
+
+
+####17. Income Verifiable:
+
+
+```{r echo=FALSE}
+
+# Plot the count of the variable: IncomeVerifiable
+
+ggplot(data = loan_updated, 
+       aes(x = IncomeVerifiable)) + 
+  geom_bar()
+
+```
+
+```{r echo=FALSE}
+
+# Count and proportions of the variable IncomeVerifiable:
+
+loan_updated %>%
+  count(IncomeVerifiable) %>%
+  mutate(freq = n / sum(n)) %>%
+  arrange(desc(n))
+
+```
+Looking at the output above, we notice the majority of borrowers (91.38%) have provided income verification documents.
+
+
+####18. Loan Original Amount:
+
+
+```{r echo=FALSE}
+
+# Plot the distribution of the variable LoanOriginalAmount:
+
+ggplot(data = loan_updated, 
+       aes(x = LoanOriginalAmount)) + 
+  geom_histogram(binwidth = 100) +
+  scale_x_continuous(breaks = seq(0,40000, 2000)) +
+  coord_cartesian(xlim = c(0,40000)) +
+theme(text = element_text(size=8), 
+        axis.text.x = element_text(angle=90, hjust=1))
+  
+```
+
+```{r echo=FALSE}
+
+# show summary of the variable LoanOriginalAmount
+
+summary(loan_updated$LoanOriginalAmount)
+
+```
+
+```{r echo=FALSE}
+# Count and proportions of the variable LoanOriginalAmount:
+
+loan_updated %>%
+  count(LoanOriginalAmount) %>%
+  mutate(freq = n / sum(n)) %>%
+  arrange(desc(n)) %>% 
+  head(10)
+
+```
+
+Looking at the output above, the average original loan amount is (\$ 9,039). To better understnad the distribution of loan amounts, I adjusted the histogram binwidth to (100). As a result, we notice there are specific loan amounts that are more common than others, for example (\$ 4,000) has the highest proportion (15.6%), (\$ 15,000) comes next with (13.3%); We can also see an outlier at the value $35,000.
+
+
+####19. Investors
+
+
+```{r echo=FALSE}
+
+# Plot the distribution of the variable Investors:
+
+ggplot(data = loan_updated, 
+       aes(x = Investors)) + 
+  geom_histogram(binwidth = 10) +
+  scale_x_continuous(breaks = seq(0,500, 50)) +
+  coord_cartesian(xlim = c(0,500))
+  
+```
+
+```{r echo=FALSE}
+# show summary of the variable Investors
+
+summary(loan_updated$Investors)
+
+```
+
+```{r echo=FALSE}
+
+# Show the count and proportion of the variable Investors:
+
+loan_updated %>%
+  count(Investors) %>%
+  mutate(freq = n / sum(n)) %>%
+  arrange(desc(n)) %>% 
+  head(10)
+```
+
+
+Looking at the output above, the average number of investors per loan is (69) investors; the largest proportion of loans (%31.5) have one investor. We also notice that the maximum number of investors for one loan is (1,189) , which is an interesting number, so I pulled up the loans with a number of investors greater than 1000 and found (2) loans with a loan original amount of (\$ 25,000) and (2) loans with a loan original amount of (\$ 20,000)
+
+```{r echo=FALSE}
+
+# Show the count and proportion of the variable Investors for loans with loanoriginalamount > 1000:
+
+loan_updated %>%
+  filter(Investors > 1000) %>%
+  select(Investors, LoanOriginalAmount)
+```
+
+
+# Univariate Analysis
+
+
+### What is the structure of your dataset?
+
+
+The dataset includes 113,937 observations and 81 variables. After excluding loans with duplicate keys and loans created pior to July 13, 2009, the new number of loans is 83,155.
+
+
+### What is/are the main feature(s) of interest in your dataset?
+
+
+There are two main features to be investigated:
+
+1. **Loan Delinquency**: I'm interested in analyzing how other variables contribute to the loan delinquency rate. This analysis will provide some guidance on the contributing factors to loan delinquency and ultimately help investors select investments with a reasonable risk/return ratio. In order to do that, I created a new variable `DelinquentList` based on the variable `LoanStatus` and the information collected from the external references included above.
+2. **Interest Rate**: Here, I'm interested in analyzing the contributing factors to the loan interest rate and ultimately provide some guidance to help borrowers make more informative decisions when applying for loans.
+
+### What other features in the dataset do you think will help support your investigation into your feature(s) of interest?
+
+To perform my analysis, I've limited the dataset to the following variables: 
+
+"ListingKey", "ListingCreationDate", "Term", "LoanStatus", "BorrowerRate", "ProsperRating..numeric.", "ProsperRating..Alpha.", "ProsperScore","ListingCategory..numeric.","BorrowerState", "Occupation", "EmploymentStatus", "IsBorrowerHomeowner", "CreditScoreRangeLower", "CreditScoreRangeUpper", "IncomeVerifiable","AvailableBankcardCredit", "DebtToIncomeRatio", "LoanKey", "MemberKey","IncomeRange", "LoanOriginalAmount","Investors"
+
+### Did you create any new variables from existing variables in the dataset?
+
+Yes, as I mentioned above, I created the following variables: `LoanCreationYear`, `DelinquentList`, `AvgCreditScore`, `NewListingCategory`
+
+I also created a new function `mySummary` to add standard deviation to the output of the built-in `summary` function.
+
+### Of the features you investigated, were there any unusual distributions? \
+Did you perform any operations on the data to tidy, adjust, or change the form \
+of the data? If so, why did you do this?
+
+The dataset is well-structured, therefore, I haven't performed any major operations to adjust the structure, however, I've made a number of minor formatting changes. For example, I changed the format of `ListingCreationDate` from character to DateTime. 
+
+Also, I updated the `ProserScore` column to replace 11's with 6's (the mean score) as the score takes values between 1 to 10, per the definition.
+
+As far as unusual distributions, I found the following:
+  - `AvailableBankcardCredit` is significantly right-skewed. 
+  - `DebtToIncomeRatio` is right skewed.
+  - `LoanOriginalAmount` is relatively right-skewed with a good proportion of outliers.
+  - `Investors` is significantly right-skewed.
+
+I also found some interesting Data Peaks & valleys. For example:
+
+  - `Term`: (70%) of the loans have a 36 month term duration.
+  - `DelinquentList`: (90%) of the loans have a  *Good Standing* status, which indicates a healthy economy.
+  - `BorrowerRate:`: (4.4 %) of the loans have an interest rate of (31.8 %) which can be considered high when compared to the mean (19.6%).
+  - `ListingCategory`: (62.4%) of the loans reported *Debit Consolidation*. 
+  - `BorrowerState`: (12.7%) of the loans belong to borrowers from *California*.
+  - `Occupation`: (25%) reported *Other* as an Occupation.
+
+As far as missing values, I identified the following:
+  
+  - `DebtToIncomeRatio`: I've found 7,135 missing value which seems unusual. Unfortunately, there is no further explanation provided in the dataset documentation as to why these values are missing. While it might be on option to populate the missing rows with a *calcuated* DebtToIncomeRatio using the available debt and income information in the dataset, it wouldn't be easy to determine the total amount of debt since borrowers might have other loans with different financial institutions not included in the dataset, so it won't be an efficient choice, and therefore I excluded those loans from the dataset.
+  - `Occupation`: we found 1,218 missing values.
+
+
+# Bivariate Plots Section
+
+
+In this section, I will mainly focus on two main features: Loan Delinquency (`DelinquentList`) and Interest Rate (`BorrowerRate`), however, I may extend my analysis to include other features, as applicable,
+
+```{r include=FALSE}
+
+# Custom function: create a table to return the proportion table (as percentages) of two variables: 
+
+myFreqTable <- function(var1, var2){
+  results <- round(prop.table(ftable(var1, var2),1)*100,2)
+  return(results)
+}
+
+```
+
+
+###I. Loan Delinquency
+
+
+####1. Loan Delinquency vs. Loan Creation Year
+
+
+```{r echo=FALSE}
+
+# plot a bar chart to show the proportion of good standing/delinquent loans by LoanCreationYear:
+
+ ggplot(data = loan_updated,
+   aes(LoanCreationYear, fill = DelinquentList)) + 
+  geom_bar(position = "fill") +
+  coord_flip()
+
+```
+
+```{r echo=FALSE}
+
+# Use the custom function myFreqTable to create a proportion table to show the percentages as in the plot above
+
+myFreqTable(loan_updated$LoanCreationYear,loan_updated$DelinquentList)
+
+```
+
+Looking at the output above, we notice the percentage of *Good Standing* loans has significantly increased in 2014 (99.93%) as opposed to (78.61%) in 2011.
+
+
+####2. Loan Delinquency vs. Term
+
+
+```{r echo=FALSE}
+
+# Create a bar chart to show the proportion of good standing/delinquent loans by Term:
+
+ ggplot(data = loan_updated,
+   aes(Term, fill = DelinquentList)) + 
+  geom_bar(position = "fill") +
+  scale_x_continuous(breaks = c(12,36,60))
+
+```
+
+```{r echo=FALSE}
+
+# Delinquency prop. by Term
+
+myFreqTable(loan_updated$Term, loan_updated$DelinquentList)
+
+```
+Looking at the output above, it looks like loans with 12-month duration tend to perform slightly better than loans with 36- and 60-month  duations;
+
+
+####3. Loan Delinquency vs. Borrower Rate
+
+
+```{r echo=FALSE}
+
+# Breakdown the BorrowerRate by DelinquentList using geom_freqpoly:
+
+ggplot(data = loan_updated, 
+       aes(x = BorrowerRate, fill = DelinquentList)) + 
+  geom_freqpoly(aes(color = DelinquentList), binwidth = 0.005) + 
+  scale_x_continuous(breaks = seq(0.035,0.36, 0.01)) +
+  coord_cartesian(xlim = c(0.036,0.37)) +
+  theme(text = element_text(size=10), 
+        axis.text.x = element_text(angle=90, hjust=1))
+
+```
+Looking at the plot above, we notice the distribution of the `BorrowerRate` for *Good standing* loans experiences more fluctuations than *Delinquent* loans; we also notice the count of both *Good standing* and *Delinquent* loans experiances a significant peak at BorrowRate = 0.31799. This is an interesting observation and can be worth further analysis.
+
+
+####4. Loan Delinquency vs. ProsperRating
+
+
+```{r echo=FALSE}
+
+# Create a bar chart to show the proportion of good standing/delinquent loans by ProsperRating..numeric.:
+
+ ggplot(data = loan_updated,
+   aes(ProsperRating..numeric., fill = DelinquentList)) + 
+  geom_bar(position = "fill") +
+  scale_x_discrete(limits = 1:7) +
+  coord_flip()
+  
+```
+
+```{r echo=FALSE}
+
+# Delinquency prop. by ProsperRating..numeric.
+
+myFreqTable(loan_updated$ProsperRating..numeric.,loan_updated$DelinquentList)
+
+```
+Looking at the output above, and as expected, the proportion of *Good Standing* loans increases as the ProsperRating increases (positive correlation).
+
+
+####5. Loan Delinquency vs. Prospoer Score
+
+
+```{r echo=FALSE}
+
+# Create a bar chart to show the proportion of good standing/delinquent loans by ProsperScore:
+
+ ggplot(data = loan_updated,
+   aes(ProsperScore, fill = DelinquentList)) + 
+  geom_bar(position = "fill") +
+  scale_x_discrete(limits = 1:10) +
+  coord_flip()
+  
+```
+
+```{r echo=FALSE}
+
+# Delinquency prop. by ProsperScore
+
+myFreqTable(loan_updated$ProsperScore, loan_updated$DelinquentList)
+
+```
+
+Looking at the output above; similar to what we found with `ProsperRating..numeric.`, the proportion of *Good Standing* loans increases as the `ProsperScore`. However, for loans with scores of 4 and 5, As the score increases, the proportion of *Good Standing* loans decreases, which leads us to think there might be another feature that could have a **stronger** impact on loan Delinquency than impact `ProsperScore` has on loan Delinquency. This is an interesting observation and can be worth further analysis. 
+
+
+####6. Loan Delinquency vs. Listing Category
+
+
+```{r echo=FALSE}
+
+# Create a bar chart to show the proportion of good standing/delinquent loans by NewListingCategory:
+
+ ggplot(data = loan_updated,
+   aes(NewListingCategory, fill = DelinquentList)) + 
+  geom_bar(position = "fill") +
+  coord_flip()
+
+```
+
+```{r echo=FALSE}
+
+# Delinquency prop. by ProsperScore
+
+myFreqTable(loan_updated$NewListingCategory, loan_updated$DelinquentList)
+
+```
+
+Looking at the output above, the category *RV* has the highest proportion (96.15%) of *Good Standing* Loans, where in *Debt Consoliation*, the percentage of good standing loans is (92.35%)
+
+
+####7. Loan Delinquency vs. Debt-To-InCome Ratio
+
+
+```{r echo=FALSE}
+
+# View histogram
+
+p1 <- ggplot(data = subset(loan_updated, !is.na(DebtToIncomeRatio)), aes(x = DebtToIncomeRatio, fill = DelinquentList)) + 
+  geom_freqpoly(aes(color = DelinquentList), binwidth = 0.05) + 
+  scale_x_continuous(breaks = seq(0,1.3, 0.1)) +
+  coord_cartesian(xlim = c(0,1.3))
+
+p1
+
+```
+
+From the plot above, we notice the *DebtToIncomeRatio* for *Good Standing* loans is higher than the one in *Delinquent* loans. Also, we notice the distribution of DebtToIncomeRatio is right-skewed in both Delinquent and Good standing loans in the range between 0 and 0.8, however, things become less clear above 0.8, therefore, to better understand the behaviour beyond 0.8, I will transform the data using `log10()` function, as follows:
+
+```{r echo=FALSE, warning=FALSE}
+
+# Apply a data transformation using log10
+
+p1 + scale_y_log10()
+
+```
+
+```{r include=FALSE}
+# Delete tmp variable
+
+rm (p1)
+
+```
+
+After transforming the data, we notice DebtToIncomeRatio have a similar behaviour for *Delinquent* and *Good standing* with minor fluctuations.
+
+
+###II. Interest Rate (BorrowerRate)
+
+
+####1. Interest Rate vs State
+
+
+```{r echo=FALSE, fig.width=10}
+
+ggplot(data = loan_updated, aes(x = BorrowerState, y = BorrowerRate)) + 
+  geom_boxplot() + 
+  theme(text = element_text(size=8), 
+        axis.text.x = element_text(angle=45, hjust=1))
+
+```
+
+```{r, echo=FALSE}
+
+# Create a table to show the mean, median, quantiles of BorrowerRate grouped by State (top 10 states):
+
+loan_updated %>%
+  group_by(BorrowerState) %>%
+  summarise(n = n(),
+            mean = mean(BorrowerRate),
+            median = median(BorrowerRate),
+            `25%`=quantile(BorrowerRate, probs=0.25),
+            `75%`=quantile(BorrowerRate, probs=0.75)) %>%
+  arrange(desc(mean)) %>%
+  head(n = 10)
+
+```
+
+Looking at the output above, we notice that Alabama (AL) has the highest average interest rate of (20.9%) where District of Columbia (DC) has the lowest average interest rate of (17.7%); I also found that California (CA), which has the highest loan proportion, has an average interest rate of (19%) which is quite close to the overall average interest rate;
+
+
+####2. Interest Rate vs Listing Category
+
+
+```{r echo=FALSE}
+
+# Create a boxplot to show BorrowerRate by Listing Category:
+
+ggplot(data = loan_updated, aes(x = NewListingCategory, y = BorrowerRate)) + 
+  geom_boxplot() + 
+  theme(text = element_text(size=8), 
+        axis.text.x = element_text(angle=45, hjust=1))
+
+```
+
+```{r, echo=FALSE}
+
+# Create a table to show the mean, median, quantiles of BorrowerRate grouped by Listing Category:
+
+loan_updated %>%
+  group_by(NewListingCategory) %>%
+  summarise(n = n(),
+            mean = mean(BorrowerRate),
+            median = median(BorrowerRate),
+            `25%`=quantile(BorrowerRate, probs=0.25),
+            `75%`=quantile(BorrowerRate, probs=0.75)) %>%
+  arrange(desc(mean))
+
+```
+
+Looking at the output above, we notice that the category *Not Available* has the highest average interest rate of (23.9%), unfortunately, that doesn't tell us much information; but the interesting thing is the category *Cosmetic Procedure* which has a mean of (22.6%); this gives an idea of how these procedures are increasinlgy becoming a priority in peoples' lives over other necessities, such as education, health, or business projects.
+
+
+####3. Interest Rate vs Employement Status
+
+
+```{r echo=FALSE}
+
+# BorrowerRate by Employement status
+
+ggplot(data = subset(loan_updated, !is.na(EmploymentStatus) & EmploymentStatus != ""), aes(x = EmploymentStatus, y = BorrowerRate)) + 
+  geom_boxplot() + 
+  theme(text = element_text(size=8), 
+        axis.text.x = element_text(angle=45, hjust=1))
+
+```
+
+```{r, echo=FALSE}
+
+# Create a table to show the mean, median, quantiles of BorrowerRate grouped by Employment Status:
+
+loan_updated %>%
+  group_by(EmploymentStatus) %>%
+  summarise(n = n(),
+            mean = mean(BorrowerRate),
+            median = median(BorrowerRate),
+            `25%`=quantile(BorrowerRate, probs=0.25),
+            `75%`=quantile(BorrowerRate, probs=0.75)) %>%
+  arrange(desc(mean))
+
+```
+
+Looking at the output above, we notice the category *Not employed* has the highest average interest rate of 26%, where the category *Employed* has the lowest average interest rate of 19.3%, which is expected.
+
+
+####4. Interest Rate vs LoanOriginalAmount
+
+
+```{r echo=FALSE}
+
+ggplot(data = loan_updated, 
+       aes(x = BorrowerRate, y = LoanOriginalAmount)) + 
+  geom_point(alpha = 1/20) +
+  coord_cartesian(xlim = c(0.05, 0.35)) +
+  geom_smooth(method='lm')
+
+```
+
+```{r, echo=FALSE}
+
+# Pearson's corrolation test
+
+cor.test(loan_updated$LoanOriginalAmount, loan_updated$BorrowerRate)
+
+```
+
+Looking at the plot above, we see a negative correlation between the original loan amount and the interest rate which makes sense as larger loan amounts are more likely to receive lower interest rates than smaller loan amounts; to confirm our observation, I performed a correlation test and got (-0.33) which indicates a weak negative correlation between the two variables.
+
+
+####5. Corrolation Coefficient Matrix
+
+
+To build on what we found in the  correlation test above and provide some intuition on which variables have a strong positive or negative correlation (i.e. above 0.5, below -0.5), let's plot the correlation matrix using Pearson correlation test
+
+```{r echo=FALSE, Multivariate_Plots1}
+
+# Create a corrolation matrix using Pearson correlation test
+
+ggcorr(data = loan_updated, 
+       method = c("pairwise", "pearson"),
+       label = TRUE, 
+       label_size = 2, 
+       hjust = 1, 
+       size = 2, 
+       layout.exp = 2,
+       legend.size = 7)
+```
+
+Looking at the matrix above, we notice the following:
+
+  - *Credit Score and Available Bank Card Credit*: we notice a fairly strong postive correlation (coeff: 0.5) between credit score and available bank card credit.
+
+  - *Prosper Score & Prosper Rating*: we notice a strong positive correlation (coeff: 0.7) between ProsperScore and ProsperRating which is expected.
+  
+    - *Credit Score & Prosper Rating*: we notice a strong positive correlation (coeff: 0.5) between credit score and Prosper Rating which is also expected.
+
+    - *Prosper Score & Borrower Rate*: we notice a strong negative correlation (coeff: -0.6) between Prosper score and Borrower Rate which is expected.
+    
+    - *Credit Score & Borrower Rate*: we notice a farily strong negative correlation (coeff: -0.5) between Credit score and Borrower Rate which is expected.
+    
+    - *Prosper Rating & Borrower Rate*: we notice a strong negative correlation (coeff: -1) between Prosper Rating and Borrower Rate which is expected.
+
+
+# Bivariate Analysis
+
+
+### Summary:
+
+
+In the bivariate analysis, we analyzed two types of relationships between variables:
+
+1. **Categorical Vs. Categorical**: in this section, I analyzed the relationship between Loan Delinquency and a number of variables and found the following:
+
+    - *Loan Delinquency vs. Loan Creation Year*: the percentage of Good Standing loans has significantly increased in 2014 (99.93%) after reaching its lowest value (78.61%) in 2011.
+    - *Loan Delinquency vs. Term*: the loans with 12 month term duation tend to perform better than loans with 36- and 60- month term duation;
+    - *Loan Delinquency vs. ProsperRating*: the proportion of Good Standing loans increases as the ProsperRating increases. 
+    - *Loan Delinquency vs. ProsperScore*: the proportion of Good Standing loans increases as the ProsperRating increases, however, for loans with scores of 4 and 5, the proportion of *Delinquent* loans goes up, which leads us to think there might be another feature that could have a **stronger** correlation with loan Delinquency than the correlation between `ProsperScore` and loan Delinuency.
+    
+    - *Loan Delinquency vs. Listing Category*: the category *RV* has the highest proportion of Good Standing Loans of (96.15%), where in *Debt Consoliation*, the percentage of good standing loans is (92.35%).
+     
+2. **Categorical Vs. Numerical**: in this section, we analyzed how the values of numerical variables (mainly: Interest Rate and Original Loan Amount) are distributed when broken down by specific categorical variables, as follows:
+
+    - *Loan Delinquency vs. Borrower Rate*: we noticed the distribution of the BorrowerRate for Good standing loans experiances more fluctuations than for Delinquent loans; we also found that the count of both Good standing and Delinquent loans peaks at BorrowRate = 0.32 or (32%).
+    - *Loan Delinquency vs. Debt-To-InCome Ratio*: DebtToIncomeRatio has a right-skewed distribution across both Delinquent and Good standing loans.
+    - *Interest Rate vs. State*: Alabama (AL) has the highest average interest rate of (20.9%) where District of Columbia (DC) has the lowest average interest rate of around (17.7%); We also found that California (CA), which has the highest loan proportion has an average interest rate of (19%).
+    - *Interest Rate vs. Listing Category*: here we noticed that *Not Available* has the highest average interest rate of 23.9%, where *Boat* has the lowest average interest rate of 17.4%.
+    - *Interest Rate vs Employment Status*: the category Not employed has the highest average interest rate of 26%, where the category Employed has the lowest average interest rate of 19.3%.
+ 
+3. **Numerical Vs. Numerical**:
+ 
+    - *Interest Rate vs. Debt-To-Income Ratio*: Unexpectedly, the data showed a very weak or no corrolation between the two variables as someone would expect borrowers with higher DebtToIncomeRatio to be charged higher interest rates, however, after applying Pearson's corrolation test, the returned corrolation co-efficient was (0.06).
+  
+    - *Interest Rate Vs. LoanOriginalAmount*: here we found a relatively negative correlation between the original loan amount and the interest rate with a corrolation co-efficient of (-0.33).
+  
+
+# Multivariate Plots Section
+
+
+In this section, I will continue to focus on interest rate, loan delinquency but I will add additional variables, such as prosperScore, loan original amount and debtToIncomeRatio and build on the analysis performed in the first two sections.
+
+
+####1. Average Interest Rate by Average Credit Score & Delinquency
+
+
+In this section, I will analyze the relationship between the average interest rate and the average credit score (the custom variable we created) and show how this relationship may vary depending on loan status (Good Standing vs. Delinquent).
+
+```{r, echo=FALSE}
+
+# Create a new dataframe to show the average interest rate grouped by average credit score and loan status
+
+Interest_by_creditScore_LoanStatus <- loan_updated %>% 
+  group_by(DelinquentList, AvgCreditScore) %>% 
+  summarise(Mean_Interest_Rate = mean(BorrowerRate))
+```
+
+```{r echo=FALSE}
+ggplot(data = Interest_by_creditScore_LoanStatus,
+         aes(x = AvgCreditScore, y = Mean_Interest_Rate)) +
+         geom_line(aes(color = DelinquentList), stat = 'summary', fun.y = mean) +
+        scale_x_continuous(breaks = seq(600,900, 25))
+```
+
+Looking at the output above, we notice that for both *Good Standing* and *Delinquent* loans, there is a negative correlation between the mean interest rate and the borrower's average credit score, however, *Good Standing* loans show a steady decrease in the mean interest rate as the average credit score goes up, where in *Delinquent* loans, we see more fluctuations especially for borrowers with high credit scores, as we can see, as the average credit score goes above 850, the mean interest rate for *Delinquent* loans jumps up which may seem unusual. This interesting observation may be an area for further analysis.
+
+
+####2. Interest rate by Prosper Score & Loan Delinquency
+
+
+As we have seen in the Bivariate Analysis (plot 5: Loan Delinquency vs. ProsperScore), there is a negative correlation between ProsperRating and loan Delinquency, however, this correlation unexpectedly changed to positive for loans with Prosper socres of 3, 4 and 5. In this section, I will analyze the relationship between Loan Delinquency, ProposerScore and a number of variables, in an attempt to find an explanation for this observation.
+
+```{r echo=FALSE, fig.width=10}
+
+ggplot(data = loan_updated, 
+       aes(x = BorrowerRate, fill = DelinquentList)) + 
+  geom_freqpoly(aes(color = DelinquentList), binwidth = 0.005) + 
+  theme(text = element_text(size=8), 
+        axis.text.x = element_text(angle=90, hjust=1)) +
+  facet_wrap(~ProsperScore)
+```
+
+Looking at the output above, for loans with the scores 3, 4, and 5, the count of both good standing and delinquent loans experiences a significant spike at 0.3177 and 0.3199; we saw this observation before in the bivariate section; to take things further, let's isolate the loans with a ProsperScore of 3, 4, or 5, and a BorrowerRate of 0.3177 and 0.3199
+
+```{r echo=FALSE}
+
+# Isolate the loans with a Propser Score of 3,4,5 and a Borrower Rate of 31.77% and 31.99%
+
+score_BR_df <- loan_updated %>%
+  filter(ProsperScore %in% c(3,4,5), BorrowerRate %in% c(0.3177,0.3199))
+
+nrow(score_BR_df)
+
+```
+
+Looking at the output above, we notice there are 4,448 loans that fit our criteria. Now, let's plot the correlation matrix for these loans:
+
+```{r echo=FALSE, Multivariate_Plots, fig.height = 6}
+
+# Create a corrolation matrix suing Pearson corrolation test
+
+ggcorr(data = score_BR_df, 
+       method = c("pairwise", "pearson"),
+       label = TRUE, 
+       label_size = 2, 
+       hjust = 1, 
+       size = 3, 
+       layout.exp = 2,
+       legend.size = 7)
+```
+
+```{r include=FALSE}
+# delete tmp variable
+rm(score_BR_df)
+```
+
+Looking at the matrix above, we don’t see any difference from the original correlation matrix. Therefore, more in-depth analysis is needed to find an explanation of what caused this spike in the borrowerRate variable. However, for the purpose of this project, we will limit our analysis to this extent.
+
+
+####3. DebtToIncomeRatio by Average Credit Score and Loan Status
+
+
+In this section, I will analyze the relationship between average DebtToIncome Ratio and Credit Score based on loan status
+
+```{r echo=FALSE}
+
+# Create a new dataframe to show the average loan amount grouped by average credit score and loan status
+
+DebtToIncome_by_AvgCS_IR_LS <- subset(loan_updated, !is.na(DebtToIncomeRatio)) %>% 
+  group_by(AvgCreditScore, DelinquentList) %>% 
+  summarise(Mean_Dbt2Incom = mean(DebtToIncomeRatio))
+
+```
+
+```{r echo=FALSE}
+
+# create line chart to show the relationship between the DebtToIncomeRatio and credit score by loan status
+
+ggplot(data = subset(DebtToIncome_by_AvgCS_IR_LS, !is.na(AvgCreditScore)),
+         aes(x = AvgCreditScore, y = Mean_Dbt2Incom)) +
+         geom_line(aes(color = DelinquentList), stat = 'summary', fun.y = mean) +
+  scale_x_continuous(breaks = seq(600,900, 25))
+
+```
+
+```{r include=FALSE}
+# delete tmp variable
+rm(DebtToIncome_by_AvgCS_IR_LS)
+```
+
+Looking at the plot above, we notice the type relationship between Average DebtToIncomeRation and average Credit score varies based on the credit score range. For borrowers with credit scores between 600 - 750, we see a fairly positive correlation between Debt2Income and Credit score, however, as the credit score goes above 750 we notice a negative correlation for the most part. We also notice that the mean DebtToIncome Ratio spikes above 0.45 for the credit scores between 825 and 835 and then drops signficiantly below 0.15
+
+
+####4. Average Loan Original Amount by Average Credit Score, Delinquency and Income Range
+
+
+In this section, I will analyze the relationship between average Loan Original Amount and Credit Score and how this relationship may vary depending on the income range and loan status.
+
+```{r echo=FALSE}
+
+# Create a new dataframe to show the average loan amount grouped by average credit score and loan status
+
+Loan_Amount_by_AvgCS_IR_LS <- loan_updated %>% 
+  group_by(AvgCreditScore, IncomeRange, DelinquentList) %>% 
+  summarise(Mean_Loan_Amount = mean(LoanOriginalAmount)) %>% 
+  arrange(AvgCreditScore)
+
+```
+
+```{r echo=FALSE, fig.width=10}
+
+# create line chart to show the relationship between the average loan amount and credit score, by loan status and income range:
+
+ggplot(data = subset(Loan_Amount_by_AvgCS_IR_LS, !is.na(AvgCreditScore)),
+         aes(x = AvgCreditScore, y = Mean_Loan_Amount)) +
+         geom_line(aes(color = DelinquentList), stat = 'summary', fun.y = mean) +
+         facet_wrap(~ IncomeRange)
+       
+```
+
+```{r include=FALSE}
+# delete tmp variable
+rm(Loan_Amount_by_AvgCS_IR_LS)
+```
+
+Looking at the plot grid above, while different income levels show differet behaviour, we may fairly say that for the most part, there may be a weak positive corroaltion between the average loan amount and the average credit score for both good standing and delinquent loans with few deviations, for example: in the income range 50K-75K, we noticed the average loan amount dropped significantly for borrowers with a credit score of 830 and above. On the other hand, for borrowers with an Income Range 100K+, the average loan amount spikes up especially for those with Delinquent loans. 
+
+
+# Multivariate Analysis
+
+
+### Talk about some of the relationships you observed in this part of the \
+investigation. Were there features that strengthened each other in terms of \
+looking at your feature(s) of interest?
+
+In this section, I try to zoom in on two main variables: loan delinquency (loan status) and interest rate by exploring the following relationships:
+
+1. Average Interest Rate by Average Credit Score & Delinquency: 
+
+Here I summarized the data to find out how the average interest rate varies depending on the average credit score by loan status. This is a common aspect to look at when applying for loans or credit cards and the goal here was to see if Delinquent loans have a different behaviour from good standing loans, and as expected, there is negative correlation between credit score and interest rate. In other words, higher credit score means lower interest rate. However, for delinquent loans, I observed some fluctuations and unusual behaviour where the interest rate increased as the credit score went above 850 which. This is area to be considered for further investigation.
+
+
+2. Interest rate by Prosper Score & Loan Delinquency: 
+
+
+In this section, I tried to find an explanation of the observation I found in the Bivariate Analysis section where the proportion delinquent loans increased as the PropserScore increased from 3 to 5. By isolating the loans with these scores 3,4,5 and ploting the correlation matrix, I wasn't able to identify any clear relationship between the ProsperScore  and the variables, however, I found that for loans with the scores 3, 4, and 5, the count of both good standing and delinquent loans experiences a significant spike at interest rates 0.3177 and 0.3199. 
+
+
+3. DebtToIncomeRatio by Average Credit Score and Loan Status
+
+
+Here I found that for borrowers with credit scores between 600 - 750, we see a fairly positive correlation between Debt2Income and Credit score, however, as the credit score goes above 750 we notice a negative correlation for the most part. I also found that the mean DebtToIncome Ratio spikes above 0.45 for the credit scores between 825 and 835 and then drops signficiantly below 0.15.
+
+
+4. Average Loan Original Amount by Average Credit Score, Delinquency and Income Range
+
+
+In this analysis, we found a weak positive corroaltion between the average loan amount and the average credit score for both good standing and delinquent loans with few deviations, for example: in the income range 50K-75K, we noticed the average loan amount dropped significantly for borrowers with a credit score of 830 and above. On the other hand, for borrowers with an Income Range 100K+, the average loan amount spikes up especially for those with Delinquent loans.
+
+
+### Were there any interesting or surprising interactions between features?
+
+
+For the most part, all the observations found are consistent with our general understanding of the loan process. However, as I mentioned above, there is some unusual behaviour for the delinquent loans that may be interesting for further analysis. Please refer to the answer of the question above for more information.
+
+
+# Final Plots and Summary
+
+
+### Plot One: Borrower Rate Distribution (by Loan Status)
+
+
+```{r echo=FALSE, Plot_One}
+
+ggplot(data = loan_updated, 
+       aes(x = BorrowerRate, fill = DelinquentList)) + 
+  geom_freqpoly(aes(color = DelinquentList), binwidth = 0.005) + 
+  scale_x_continuous(breaks = seq(0.035,0.36, 0.01)) +
+  coord_cartesian(xlim = c(0.036,0.37)) +
+  theme(text = element_text(size=10), 
+        axis.text.x = element_text(angle=90, hjust=1)) + 
+  ggtitle("Interest Rate distribution (by Loan Status)\n") + 
+  theme(plot.title = element_text(hjust = 0.5)) +
+  xlab("Interest Rate") + ylab("Loan Count")
+
+```
+
+
+### Description One
+
+
+In the plot above, we found that the distribution of the `BorrowerRate` for *Good standing* loans experiences more fluctuations than *Delinquent* loans; we also notice the count of both *Good standing* and *Delinquent* loans experiances a significant peak at BorrowRate = 0.31799.
+
+
+### Plot Two: Interest Rate vs LoanOriginalAmount
+
+
+```{r echo=FALSE, Plot_Two}
+
+ggplot(data = loan_updated, 
+       aes(x = BorrowerRate, y = LoanOriginalAmount)) + 
+  geom_point(alpha = 1/20) +
+  coord_cartesian(xlim = c(0.05, 0.35)) +
+  geom_smooth(method='lm') +
+  ggtitle("Interest Rate vs LoanOriginalAmount\n") + 
+  theme(plot.title = element_text(hjust = 0.5)) +
+  xlab("Interest Rate") + ylab("LoanOriginalAmount")
+
+```
+
+
+### Description Two
+
+
+In this plot, we observed a negative correlation between the original loan amount and the interest rate which makes sense as larger loan amounts are more likely to receive lower interest rates than smaller loan amounts; to confirm our observation, I performed a correlation test and got (-0.33) which indicates a weak negative correlation between the two variables.
+
+
+### Plot Three: Average Interest Rate Vs Average Credit Score (by Loan Status)
+
+
+```{r echo=FALSE, Plot_Three}
+ggplot(data = Interest_by_creditScore_LoanStatus,
+         aes(x = AvgCreditScore, y = Mean_Interest_Rate)) +
+         geom_line(aes(color = DelinquentList), stat = 'summary', fun.y = mean) +
+        scale_x_continuous(breaks = seq(600,900, 25)) +
+  ggtitle("Average Interest Rate Vs Average Credit Score\n(by Loan Status)\n") + 
+  theme(plot.title = element_text(hjust = 0.5)) +
+  xlab("Average Credit Score") + ylab("Average Interest Rate")
+```
+
+```{r include=FALSE}
+# delete tmp variable
+rm(Interest_by_creditScore_LoanStatus)
+```
+
+### Description Three
+
+Looking at the output above, we notice that for both *Good Standing* and *Delinquent* loans, there is a negative correlation between the mean interest rate and the borrower's average credit score, however, *Good Standing* loans show a steady decrease in the mean interest rate as the average credit score goes up, where in *Delinquent* loans, we see more fluctuations especially for borrowers with high credit scores, as we can see, as the average credit score goes above 850, the mean interest rate for *Delinquent* loans jumps up which may seem unusual.
+
+
+# Reflection
+
+
+The analysis above aimed at exploring the Prosper Loan dataset. I focused 2 key variables: Interest Rate and Loan Delinquency. The purpose of the analysis was to provide a preliminary guidance to help borrowers and investors make informative decisions. The majority of the observations is consistent with the general understanding of the loan process. There was a number of unusual observations that were pointed out in the analysis that could be investigated further. There was no major chanllenges in performing the analysis. Some of the minor challenges faced:
+- missing values
+- duplicated values
+- erroneous values
+- Lack of detailed definitions for a number of variables.
+
+Throughtout the analysis, I created a number of variables and functions to facilitate the analysis.
+
+Beside the comments above, some of the areas for future improvement may include:
+
+- Conduct an in-depth analysis on the loans that have interest rates of 31.77% and 31.99%
+- Conduct an in-depth analysis on the loans that have generic categories, such as: `ListingCategory`, `Occupation`, `EmploymentStatus`
+- Conduct a research to learn why credit scores have fixed intervals (20 points) and not 
+- Conduct an in-depth analysis to understand how the ProsperScore and Rating are calculated if this information cannot be retrieved from reliable sources.
+
+
+###References
+
+https://en.wikipedia.org/wiki/Prosper_Marketplace
+https://www.prosper.com/
+https://www.investopedia.com/ask/answers/09/difference-between-yields-and-interest-rate.asp
+https://www.investopedia.com/ask/answers/062315/what-are-differences-between-delinquency-and-default.asp
+https://www.investopedia.com/terms/r/revolving-account.asp
+https://www.investopedia.com/terms/t/trade-line.asp
+https://en.wikipedia.org/wiki/Pearson_correlation_coefficient
+
+
