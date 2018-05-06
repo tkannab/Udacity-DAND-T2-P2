@@ -24,3 +24,5 @@ After completing the project, we will:
 In this project, you learn skills to frame and present data. Data, by itself, is "ubiquitous and cheap," says Google's Chief Economist and UC Berkeley professor Hal Varian. What you do as a data analyst is take that data and turn it into insights.
 
 When working on this project, think about the insights you're trying to provide. When speaking to an employer, this is what they want to first hear about.
+
+[Project Review](https://review.udacity.com/#!/reviews/1194155/shared)
