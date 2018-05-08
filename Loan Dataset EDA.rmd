@@ -1,13 +1,20 @@
-Loan Data from Prosper (Data Exploratory Analysis) by Toufik Kannab
-========================================================
+Loan Data from Prosper (Exploratory Data Analysis) 
+=====
+
+By Toufik Kannab
 
 ***
 ###Introduction:
 
 Prosper is a peer-to-peer lending platform, with over \$10 billion in funded loans, where individuals can either invest in personal loans or request to borrow money. On Prosper, borrowers list loan requests between \$2,000 and \$35,000 and individual investors invest as little as \$25 in each loan listing they select. Prosper handles the servicing of the loan on behalf of the matched borrowers and investors. Prosper Marketplace is backed by leading investors including Sequoia Capital, Francisco Partners, Institutional Venture Partners, and Credit Suisse NEXT Fund.
 
-This report will explore a loan dataset containing 113,937 loans with 81 variables on each loan, including loan amount, borrower rate (or interest rate), current loan status, borrower income, borrower employment status, borrower credit history, the latest payment information and many others. Click [here](https://docs.google.com/spreadsheets/d/1gDyi_L4UvIrLTEC6Wri5nbaMmkGmLQBk-Yx3z0XDEtI/edit#gid=0) to download the excel spreadsheet which includes a datailed description of each variable in the dataset.
+This report will explore a loan dataset containing 113,937 loans with 81 variables on each loan, including loan amount, borrower rate (or interest rate), current loan status, borrower income, borrower employment status, borrower credit history, the latest payment information and many others. 
 
+- To download the dataset documentation, please click [here](https://docs.google.com/spreadsheets/d/1gDyi_L4UvIrLTEC6Wri5nbaMmkGmLQBk-Yx3z0XDEtI/edit#gid=0) 
+
+- To download the dataset, please click [here](https://s3.amazonaws.com/udacity-hosted-downloads/ud651/prosperLoanData.csv).
+
+- To view the code, please click [here](https://github.com/tkannab/Udacity-DAND-T2-P2-EDA/blob/master/Loan%20Dataset%20EDA.rmd)
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
 # Load all of the packages that you end up using in your analysis in this code
@@ -1074,7 +1081,7 @@ myFreqTable(loan_updated$ProsperScore, loan_updated$DelinquentList)
 
 ```
 
-Looking at the output above; similar to what we found with `ProsperRating..numeric.`, the proportion of *Good Standing* loans increases as the `ProsperScore`. However, for loans with scores of 4 and 5, As the score increases, the proportion of *Good Standing* loans decreases, which leads us to think there might be another feature that could have a **stronger** impact on loan Delinquency than impact `ProsperScore` has on loan Delinquency. This is an interesting observation and can be worth further analysis. 
+Looking at the output above; similar to what we found with `ProsperRating..numeric.`, the proportion of *Good Standing* loans increases as the `ProsperScore` increases. However, for loans with scores of 4 and 5, As the score increases, the proportion of *Good Standing* loans decreases, which leads us to think there might be another feature that could have a **stronger** impact on loan Delinquency than impact `ProsperScore` has on loan Delinquency. This is an interesting observation and can be worth further analysis. 
 
 
 ####6. Loan Delinquency vs. Listing Category
@@ -1484,7 +1491,7 @@ Looking at the plot grid above, while different income levels show differet beha
 investigation. Were there features that strengthened each other in terms of \
 looking at your feature(s) of interest?
 
-In this section, I try to zoom in on two main variables: loan delinquency (loan status) and interest rate by exploring the following relationships:
+In this section, I will zoom in on two main variables: loan delinquency (loan status) and interest rate by exploring the following relationships:
 
 1. Average Interest Rate by Average Credit Score & Delinquency: 
 
