@@ -302,6 +302,7 @@ Looking at the variable `LoanStatus`, although there is no category called *Deli
 loan_updated$DelinquentList <-  ifelse( loan_updated$LoanStatus == "Chargedoff" | 
                                         loan_updated$LoanStatus == "Defaulted" |
                                         loan_updated$LoanStatus == "Past Due (1-15 days)" | 
+                                        loan_updated$LoanStatus == "Past Due (16-30 days)" |
                                         loan_updated$LoanStatus == "Past Due (31-60 days)" |
                                         loan_updated$LoanStatus == "Past Due (61-90 days)" | 
                                         loan_updated$LoanStatus == "Past Due (91-120 days)" |
@@ -662,7 +663,7 @@ loan_updated %>%
 
 ```
 
-Looking at the restuls above, The average value of the `AvgCreditScore` is (709.1) with a minimum of (609.5) and a maximum of (889.5). According to a blog post on (www.fico.com), (click [here](http://www.fico.com/en/blogs/risk-compliance/us-average-fico-score-hits-700-a-milestone-for-consumers/) to see the post), the percentage of consumers scoring in the range (800 and up) has steadily increased since 2010 after the bottoming out of the economy between 2009 - 2010; the data presented in the post was based on a snapshot of millions of US consumers’ credit data that ranges between 2005 - 2017, the post shows how the average credit score has increased from (686) in October 2009 to (696) in October 2015, and later hit the (700) threshold by April 2017. By comparing the figures included in this post with our dataset, I can reasonably assume that our dataset is consistent with what was found in the post; I've also noticed, based on the histogram above, that the distribution of the average credit score is relatively normal, which is expected, with a longer right tail. Another interesting observation I've noticed is that there are spaces of the same size (20 points) between the bins, I'm not quite sure why this is the case, it could be related to the way credit scores are fed to the loan system, but this is something to be considered when conducting a more in-depth analysis of the credit score variables.
+Looking at the results above, The average value of the `AvgCreditScore` is (709.1) with a minimum of (609.5) and a maximum of (889.5). According to a (fico.com) blog [post](http://www.fico.com/en/blogs/risk-compliance/us-average-fico-score-hits-700-a-milestone-for-consumers/), the percentage of consumers scoring in the range (800 and up) has steadily increased since 2010 after the bottoming out of the economy between 2009 - 2010; the data presented in the post was based on a snapshot of millions of US consumers’ credit data that ranges between 2005 - 2017, the post shows how the average credit score has increased from (686) in October 2009 to (696) in October 2015, and later hit the (700) threshold by April 2017. By comparing the figures included in this post with our dataset, I can reasonably assume that our dataset is consistent with what was found in the post; I've also noticed, based on the histogram above, that the distribution of the average credit score is relatively normal, which is expected, with a longer right tail. Another interesting observation I've noticed is that there are spaces of the same size (20 points) between the bins, I'm not quite sure why this is the case, it could be related to the way credit scores are fed to the loan system, but this is something to be considered when conducting a more in-depth analysis of the credit score variables.
 
 
 ####14. Available Bank card Credit
@@ -887,6 +888,11 @@ loan_updated %>%
 ```
 
 
+```{r include=FALSE}
+write.table(loan_updated, file = "prosperLoanData_cleaned.csv",row.names=FALSE, na="",sep=",")
+```
+
+
 # Univariate Analysis
 
 
@@ -972,7 +978,7 @@ myFreqTable <- function(var1, var2){
 
 # plot a bar chart to show the proportion of good standing/delinquent loans by LoanCreationYear:
 
- ggplot(data = loan_updated,
+ggplot(data = loan_updated,
    aes(LoanCreationYear, fill = DelinquentList)) + 
   geom_bar(position = "fill") +
   coord_flip()
@@ -1125,7 +1131,7 @@ p1
 
 ```
 
-From the plot above, we notice the *DebtToIncomeRatio* for *Good Standing* loans is higher than the one in *Delinquent* loans. Also, we notice the distribution of DebtToIncomeRatio is right-skewed in both Delinquent and Good standing loans in the range between 0 and 0.8, however, things become less clear above 0.8, therefore, to better understand the behaviour beyond 0.8, I will transform the data using `log10()` function, as follows:
+From the plot above, we notice the distributions of the `DebtToIncomeRatio` are right-skewed for both *Good Standing* and *Delinquent* loans in the range between 0 and 0.8, however, things become less clear above 0.8. To get a better understanding of the distributions above 0.8, I will transform the data using `log10()` function, as follows:
 
 ```{r echo=FALSE, warning=FALSE}
 
@@ -1142,7 +1148,7 @@ rm (p1)
 
 ```
 
-After transforming the data, we notice DebtToIncomeRatio have a similar behaviour for *Delinquent* and *Good standing* with minor fluctuations.
+After transforming the data, we notice `DebtToIncomeRatio` has a similar behaviour for *Delinquent* and *Good standing* loans with minor fluctuations.
 
 
 ###II. Interest Rate (BorrowerRate)
@@ -1272,7 +1278,7 @@ Looking at the plot above, we see a negative correlation between the original lo
 
 To build on what we found in the  correlation test above and provide some intuition on which variables have a strong positive or negative correlation (i.e. above 0.5, below -0.5), let's plot the correlation matrix using Pearson correlation test
 
-```{r echo=FALSE, Multivariate_Plots1}
+```{r echo=FALSE, message=FALSE}
 
 # Create a corrolation matrix using Pearson correlation test
 
@@ -1309,24 +1315,24 @@ Looking at the matrix above, we notice the following:
 
 In the bivariate analysis, we analyzed two types of relationships between variables:
 
-1. **Categorical Vs. Categorical**: in this section, I analyzed the relationship between Loan Delinquency and a number of variables and found the following:
+1. **Categorical / Categorical**: in this section, I analyzed the relationship between Loan Delinquency and a number of variables and found the following:
 
-    - *Loan Delinquency vs. Loan Creation Year*: the percentage of Good Standing loans has significantly increased in 2014 (99.93%) after reaching its lowest value (78.61%) in 2011.
-    - *Loan Delinquency vs. Term*: the loans with 12 month term duation tend to perform better than loans with 36- and 60- month term duation;
-    - *Loan Delinquency vs. ProsperRating*: the proportion of Good Standing loans increases as the ProsperRating increases. 
-    - *Loan Delinquency vs. ProsperScore*: the proportion of Good Standing loans increases as the ProsperRating increases, however, for loans with scores of 4 and 5, the proportion of *Delinquent* loans goes up, which leads us to think there might be another feature that could have a **stronger** correlation with loan Delinquency than the correlation between `ProsperScore` and loan Delinuency.
+    - *Loan Delinquency (by Loan Creation Year)*: the percentage of Good Standing loans has significantly increased in 2014 (99.93%) after reaching its lowest value (78.61%) in 2011.
+    - *Loan Delinquency (by Term)*: the loans with 12 month term duation tend to perform better than loans with 36- and 60- month term duation;
+    - *Loan Delinquency (by ProsperRating)*: the proportion of Good Standing loans increases as the ProsperRating increases. 
+    - *Loan Delinquency (by ProsperScore)*: the proportion of Good Standing loans increases as the ProsperRating increases, however, for loans with scores of 4 and 5, the proportion of *Delinquent* loans goes up, which leads us to think there might be another feature that could have a **stronger** correlation with loan Delinquency than the correlation between `ProsperScore` and loan Delinuency.
     
-    - *Loan Delinquency vs. Listing Category*: the category *RV* has the highest proportion of Good Standing Loans of (96.15%), where in *Debt Consoliation*, the percentage of good standing loans is (92.35%).
+    - *Loan Delinquency (by Listing Category)*: the category *RV* has the highest proportion of Good Standing Loans of (96.15%), where in *Debt Consoliation*, the percentage of good standing loans is (92.35%).
      
-2. **Categorical Vs. Numerical**: in this section, we analyzed how the values of numerical variables (mainly: Interest Rate and Original Loan Amount) are distributed when broken down by specific categorical variables, as follows:
+2. **Categorical / Numerical**: in this section, we analyzed how the values of numerical variables (mainly: Interest Rate and Original Loan Amount) are distributed when broken down by specific categorical variables, as follows:
 
-    - *Loan Delinquency vs. Borrower Rate*: we noticed the distribution of the BorrowerRate for Good standing loans experiances more fluctuations than for Delinquent loans; we also found that the count of both Good standing and Delinquent loans peaks at BorrowRate = 0.32 or (32%).
-    - *Loan Delinquency vs. Debt-To-InCome Ratio*: DebtToIncomeRatio has a right-skewed distribution across both Delinquent and Good standing loans.
-    - *Interest Rate vs. State*: Alabama (AL) has the highest average interest rate of (20.9%) where District of Columbia (DC) has the lowest average interest rate of around (17.7%); We also found that California (CA), which has the highest loan proportion has an average interest rate of (19%).
-    - *Interest Rate vs. Listing Category*: here we noticed that *Not Available* has the highest average interest rate of 23.9%, where *Boat* has the lowest average interest rate of 17.4%.
-    - *Interest Rate vs Employment Status*: the category Not employed has the highest average interest rate of 26%, where the category Employed has the lowest average interest rate of 19.3%.
+    - *Borrower Rate (by Loan Delinquency)*: we noticed the distribution of the BorrowerRate for Good standing loans experiances more fluctuations than for Delinquent loans; we also found that the count of both Good standing and Delinquent loans peaks at BorrowRate = 0.32 or (32%).
+    - *Debt-To-InCome Ratio (by Loan Delinquency)*: DebtToIncomeRatio has a right-skewed distribution across both Delinquent and Good standing loans.
+    - *Interest Rate (by State)*: Alabama (AL) has the highest average interest rate of (20.9%) where District of Columbia (DC) has the lowest average interest rate of around (17.7%); We also found that California (CA), which has the highest loan proportion has an average interest rate of (19%).
+    - *Interest Rate (by Listing Category)*: here we noticed that *Not Available* has the highest average interest rate of 23.9%, where *Boat* has the lowest average interest rate of 17.4%.
+    - *Interest Rate (by Employment Status)*: the category Not employed has the highest average interest rate of 26%, where the category Employed has the lowest average interest rate of 19.3%.
  
-3. **Numerical Vs. Numerical**:
+3. **Numerical / Numerical**:
  
     - *Interest Rate vs. Debt-To-Income Ratio*: Unexpectedly, the data showed a very weak or no corrolation between the two variables as someone would expect borrowers with higher DebtToIncomeRatio to be charged higher interest rates, however, after applying Pearson's corrolation test, the returned corrolation co-efficient was (0.06).
   
@@ -1495,7 +1501,7 @@ In this section, I will zoom in on two main variables: loan delinquency (loan st
 
 1. Average Interest Rate by Average Credit Score & Delinquency: 
 
-Here I summarized the data to find out how the average interest rate varies depending on the average credit score by loan status. This is a common aspect to look at when applying for loans or credit cards and the goal here was to see if Delinquent loans have a different behaviour from good standing loans, and as expected, there is negative correlation between credit score and interest rate. In other words, higher credit score means lower interest rate. However, for delinquent loans, I observed some fluctuations and unusual behaviour where the interest rate increased as the credit score went above 850 which. This is area to be considered for further investigation.
+Here I summarized the data to find out how the average interest rate varies depending on the average credit score by loan status. This is a common aspect to look at when applying for loans or credit cards and the goal here is to see if Delinquent loans have a different behaviour from good standing loans, and as expected, there is negative correlation between credit score and interest rate. In other words, higher credit score means lower interest rate. However, for delinquent loans, I observed some fluctuations and unusual behaviour where the interest rate increased as the credit score went above 850 which. This is area to be considered for further investigation.
 
 
 2. Interest rate by Prosper Score & Loan Delinquency: 
