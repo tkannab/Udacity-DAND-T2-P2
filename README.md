@@ -47,11 +47,11 @@ You will want to document your exploration and analysis in an **RMD file** which
 
 1. A stream-of-consciousness analysis and exploration of the data.
 
-  a. Headings and text should organize your thoughts and reflect your analysis as you explored the data.
+    a. Headings and text should organize your thoughts and reflect your analysis as you explored the data.
 
-  b. Plots in this analysis do not need to be polished with labels, units, and titles; these plots are exploratory (quick and dirty). They should, however, be of the appropriate type and effectively convey the information you glean from them.
+    b. Plots in this analysis do not need to be polished with labels, units, and titles; these plots are exploratory (quick and dirty). They should, however, be of the appropriate type and effectively convey the information you glean from them.
 
-  c. You can iterate on a plot in the same R chunk, but you don’t need to show every plot iteration in your analysis.
+    c. You can iterate on a plot in the same R chunk, but you don’t need to show every plot iteration in your analysis.
 
 2. A section at the end called “Final Plots and Summary”
 
