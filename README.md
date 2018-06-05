@@ -1,4 +1,6 @@
-# Udacity - Data Analyst Nanodegree - Term 2 - Project 2: Exploratory Data Analysis - Prosper Loan
+# Exploratory Data Analysis - Prosper Loan
+
+### Udacity Data Analyst Nanodegree (DAND) - Term 2 - Project 2
 
 ## Project Overview
 
@@ -14,7 +16,7 @@ In this project, you learn skills to frame and present data. Data, by itself, is
 
 When working on this project, think about the insights you're trying to provide. When speaking to an employer, this is what they want to first hear about.
 
-## 2. Project Details
+## Project Details
 
 ### Introduction
 
@@ -69,8 +71,6 @@ Your knitted RMD file should not be one long chunk of R code. It should contain 
 
 The data set you submit (only if you chose your own) should include a text file, like those in the R documentation (e.g. ?diamonds) that describes the source of your data and an explanation of the variables in the data set (definition of any variables, units, levels of categorical variables, and the data generating process, such as how data was collected if possible).
 
-[Project Walkthrough](https://www.youtube.com/watch?time_continue=6&v=_OwKKL6SI38)
-
-[Project Review](https://review.udacity.com/#!/reviews/1194155/shared)
+The project walkthrough can be found [here](https://www.youtube.com/watch?time_continue=6&v=_OwKKL6SI38).
 
 To see the full report, please click [here](http://rpubs.com/tkannab/dand-eda)
